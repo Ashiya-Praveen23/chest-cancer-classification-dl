@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chest Cancer Classification</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f3f6fc; margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh;}
+  .container { background:#fff; border-radius:16px; box-shadow:0 6px 20px rgba(0,0,0,0.1); max-width:900px; width:100%; padding:30px;}
+  h1 { text-align:center; color:#1b2d6b; margin-bottom:20px; font-size:28px; }
+  .flex { display:flex; flex-wrap:wrap; gap:20px; }
+  .upload-box, .result-box { flex:1; min-width:300px; }
+  .image-preview { border:2px dashed #1b2d6b; border-radius:12px; height:300px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:20px; position:relative; background:#fafafa;}
+  .image-preview img { max-width:100%; max-height:100%; display:none; }
+  .buttons { display:flex; justify-content:space-between; gap:10px; }
+  button { flex:1; padding:12px; border:none; border-radius:8px; font-size:16px; cursor:pointer; transition:0.3s ease; }
+  .btn-upload { background:#1b2d6b; color:white; } .btn-upload:hover { background:#263c91; }
+  .btn-predict { background:#28a745; color:white; } .btn-predict:hover { background:#218838; }
+  .result-box { border:1px solid #ddd; border-radius:12px; padding:15px; background:#fafafa; height:340px; overflow-y:auto; }
+  .result-box h2 { font-size:18px; margin-bottom:10px; color:#333; text-align:center; }
+  .badge { display:inline-block; padding:12px 20px; border-radius:25px; font-size:20px; font-weight:bold; color:white; margin-bottom:10px; }
+  #loading { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); justify-content:center; align-items:center; z-index:9999; }
+  .loader { border:6px solid #f3f3f3; border-top:6px solid #1b2d6b; border-radius:50%; width:50px; height:50px; animation:spin 1s linear infinite; }
+  @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Chest Cancer Classification</h1>
+  <div class="flex">
+    <div class="upload-box">
+      <div class="image-preview" id="preview">
+        <img id="photo" alt="Preview"/>
+      </div>
+      <div class="buttons">
+        <button class="btn-upload" id="uload">Upload</button>
+        <button class="btn-predict" id="send">Predict</button>
+      </div>
+      <input type="file" id="fileinput" accept="image/*" hidden/>
+    </div>
+    <div class="result-box">
+      <h2>Prediction Results</h2>
+      <div id="results"></div>
+    </div>
+  </div>
+</div>
+<div id="loading"><div class="loader"></div></div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script>
+let base_data = "";
+$('#uload').click(()=>$('#fileinput').trigger('click'));
+$('#fileinput').change(function(){
+  if(this.files && this.files[0]){
+    let reader = new FileReader();
+    reader.onload = function(e){
+      let url = e.target.result;
+      base_data = url.split(',')[1]; // remove base64 header
+      $('#photo').attr('src', url).show();
+    }
+    reader.readAsDataURL(this.files[0]);
+  }
+});
+
+function sendRequest(base64Data){
+  if(!base64Data) return;
+  $('#loading').css('display','flex');
+  $.ajax({
+    url: '/predict',
+    type: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({image: base64Data}),
+    success: function(res){
+      $('#results').empty();
+      if(res.error){
+        $('#results').html("<p style='color:red;'>"+res.error+"</p>");
+      } else {
+        let pred = res[0].image;
+        let conf = res[0].confidence;
+        let color = (pred === "Normal") ? "#28a745" : "#dc3545";
+
+        $('#results').html(`
+          <div style="text-align:center;">
+            <span class="badge" style="background:${color};">Prediction: ${pred}</span>
+            <p><b>Confidence:</b> ${conf}%</p>
+          </div>
+        `);
+      }
+      $('#loading').hide();
+    },
+    error: function(){
+      $('#results').html("<p style='color:red;'>Server error.</p>");
+      $('#loading').hide();
+    }
+  });
+}
+
+$('#send').click(()=>sendRequest(base_data));
+</script>
+</body>
+</html>
